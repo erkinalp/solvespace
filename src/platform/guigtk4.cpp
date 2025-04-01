@@ -10,11 +10,13 @@
 #include <json-c/json_util.h>
 #include <gtk/gtk.h>
 #include <gio/gio.h>
-#include <fontconfig/fontconfig.h>
 #include <glib.h>
 #include <glib/gi18n.h>
+#include <fontconfig/fontconfig.h>
 
 #include "config.h"
+#if defined(HAVE_GTK_FILECHOOSERNATIVE)
+#   include <gtk/gtk.h>
 #endif
 
 #if defined(HAVE_SPACEWARE)
@@ -233,61 +235,17 @@ TimerRef CreateTimer() {
 class GtkMenuItem {
 public:
     Platform::MenuItem *_receiver;
-    sigc::connection    _onActivateConnection;
-    std::string         _label;
-    std::string         _action_name;
+    GtkWidget          *widget;
     bool                _has_indicator;
     bool                _is_active;
     bool                _draw_as_radio;
-    Glib::RefPtr<Gio::MenuItem> _menuItem;
-    Glib::RefPtr<Gio::SimpleAction> _action;
     
     GtkMenuItem(Platform::MenuItem *receiver) :
         _receiver(receiver), _has_indicator(false), _is_active(false), _draw_as_radio(false) {
-        
-        _action_name = "action_" + std::to_string(reinterpret_cast<uintptr_t>(this));
-        
-        _action = Gio::SimpleAction::create(_action_name);
-        
-        _onActivateConnection = _action->signal_activate().connect(
-            sigc::mem_fun(*this, &GtkMenuItem::on_activate));
+        widget = gtk_check_button_new();
     }
     
-    void set_label(const std::string &label) {
-        _label = label;
-        if (_menuItem) {
-            _menuItem->set_label(PrepareMnemonics(label));
-        }
-    }
-    
-    void set_accel_key(const Gtk::AccelKey &accel_key) {
-        if (_menuItem) {
-            guint key = accel_key.get_key();
-            Gdk::ModifierType mods = accel_key.get_mod();
-            
-            std::string accelString;
-            if ((mods & Gdk::ModifierType::CONTROL_MASK) != 0) accelString += "<Control>";
-            if ((mods & Gdk::ModifierType::SHIFT_MASK) != 0) accelString += "<Shift>";
-            if ((mods & Gdk::ModifierType::ALT_MASK) != 0) accelString += "<Alt>";
-            
-            if (key >= GDK_KEY_F1 && key <= GDK_KEY_F12) {
-                accelString += "F" + std::to_string(key - GDK_KEY_F1 + 1);
-            } else if (key == GDK_KEY_Tab) {
-                accelString += "Tab";
-            } else if (key == GDK_KEY_Escape) {
-                accelString += "Escape";
-            } else if (key == GDK_KEY_Delete) {
-                accelString += "Delete";
-            } else {
-                char c = gdk_keyval_to_unicode(key);
-                if (c) accelString += c;
-            }
-            
-            if (!accelString.empty()) {
-                _menuItem->set_attribute_value("accel", 
-                    Glib::Variant<std::string>::create(accelString));
-            }
-        }
+    void set_accel_key(guint key, GdkModifierType mods) {
     }
     
     bool has_indicator() const {
@@ -302,31 +260,30 @@ public:
         _draw_as_radio = draw_as_radio;
     }
     
-    bool get_draw_as_radio() const {
-        return _draw_as_radio;
-    }
-    
     void set_active(bool active) {
         if(_is_active == active)
             return;
         
         _is_active = active;
-        
-        if(_has_indicator && _action) {
-            _action->change_state(Glib::Variant<bool>::create(active));
-        }
+        gtk_check_button_set_active(GTK_CHECK_BUTTON(widget), active);
+    }
+    
+    void set_label(const std::string &label) {
+        gtk_check_button_set_label(GTK_CHECK_BUTTON(widget), label.c_str());
+    }
+    
+    void set_use_underline(bool use_underline) {
+        g_object_set(G_OBJECT(widget), "use-underline", use_underline, NULL);
     }
     
     void set_sensitive(bool sensitive) {
-        if(_action) {
-            _action->set_enabled(sensitive);
-        }
+        gtk_widget_set_sensitive(widget, sensitive);
     }
     
-protected:
-    void on_activate(const Glib::VariantBase& parameter) {
-        if(_receiver && _receiver->onTrigger) {
-            _receiver->onTrigger();
+    static void on_activate(GtkWidget *widget, gpointer user_data) {
+        GtkMenuItem *item = static_cast<GtkMenuItem*>(user_data);
+        if(item->_receiver && item->_receiver->onTrigger) {
+            item->_receiver->onTrigger();
         }
     }
 };
@@ -357,15 +314,15 @@ public:
             accelKey = GDK_KEY_F1 + accel.num - 1;
         }
 
-        Gdk::ModifierType accelMods = {};
+        GdkModifierType accelMods = (GdkModifierType)0;
         if(accel.shiftDown) {
-            accelMods |= Gdk::SHIFT_MASK;
+            accelMods = (GdkModifierType)(accelMods | GDK_SHIFT_MASK);
         }
         if(accel.controlDown) {
-            accelMods |= Gdk::CONTROL_MASK;
+            accelMods = (GdkModifierType)(accelMods | GDK_CONTROL_MASK);
         }
 
-        gtkMenuItem.set_accel_key(Gtk::AccelKey(accelKey, accelMods));
+        gtkMenuItem.set_accel_key(accelKey, accelMods);
     }
 
     void SetIndicator(Indicator type) override {
@@ -399,65 +356,69 @@ public:
 
 class MenuImplGtk final : public Menu {
 public:
-    Glib::RefPtr<Gio::Menu> gtkMenu;
-    Glib::RefPtr<Gio::SimpleActionGroup> actionGroup;
+    GtkWidget *gtkMenu;
     std::vector<std::shared_ptr<MenuItemImplGtk>> menuItems;
     std::vector<std::shared_ptr<MenuImplGtk>> subMenus;
     
     MenuImplGtk() {
-        gtkMenu = Gio::Menu::create();
-        actionGroup = Gio::SimpleActionGroup::create();
+        gtkMenu = gtk_popover_menu_new();
     }
-
+    
     MenuItemRef AddItem(const std::string &label,
                         std::function<void()> onTrigger = NULL,
                         bool mnemonics = true) override {
         auto menuItem = std::make_shared<MenuItemImplGtk>();
         menuItems.push_back(menuItem);
-
-        menuItem->gtkMenuItem = GtkMenuItem(menuItem.get());
+        
         menuItem->gtkMenuItem.set_label(mnemonics ? PrepareMnemonics(label) : label);
+        menuItem->gtkMenuItem.set_use_underline(mnemonics);
         menuItem->onTrigger = onTrigger;
         
-        menuItem->gtkMenuItem._action_name = "action_" + std::to_string(reinterpret_cast<uintptr_t>(menuItem.get()));
-        menuItem->gtkMenuItem._action = Gio::SimpleAction::create(menuItem->gtkMenuItem._action_name);
+        g_signal_connect(menuItem->gtkMenuItem.widget, "clicked", 
+                         G_CALLBACK(GtkMenuItem::on_activate), &menuItem->gtkMenuItem);
         
-        menuItem->gtkMenuItem._onActivateConnection = 
-            menuItem->gtkMenuItem._action->signal_activate().connect(
-                sigc::mem_fun(menuItem->gtkMenuItem, &GtkMenuItem::on_activate));
+        gtk_popover_menu_add_child(GTK_POPOVER_MENU(gtkMenu), menuItem->gtkMenuItem.widget, NULL);
+        gtk_widget_show(menuItem->gtkMenuItem.widget);
         
-        actionGroup->add_action(menuItem->gtkMenuItem._action);
-        
-        menuItem->gtkMenuItem._menuItem = Gio::MenuItem::create(
-            mnemonics ? PrepareMnemonics(label) : label, 
-            "menu." + menuItem->gtkMenuItem._action_name);
-        
-        gtkMenu->append_item(menuItem->gtkMenuItem._menuItem);
-
         return menuItem;
     }
-
+    
     MenuRef AddSubMenu(const std::string &label) override {
+        auto menuItem = std::make_shared<MenuItemImplGtk>();
+        menuItems.push_back(menuItem);
+        
         auto subMenu = std::make_shared<MenuImplGtk>();
         subMenus.push_back(subMenu);
         
-        Glib::RefPtr<Gio::MenuItem> item = Gio::MenuItem::create(PrepareMnemonics(label), subMenu->gtkMenu);
-        gtkMenu->append_item(item);
-
+        menuItem->gtkMenuItem.set_label(PrepareMnemonics(label));
+        menuItem->gtkMenuItem.set_use_underline(true);
+        
+        GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        gtk_box_append(GTK_BOX(box), menuItem->gtkMenuItem.widget);
+        gtk_box_append(GTK_BOX(box), subMenu->gtkMenu);
+        
+        gtk_popover_menu_add_child(GTK_POPOVER_MENU(gtkMenu), box, NULL);
+        gtk_widget_show(box);
+        
         return subMenu;
     }
-
+    
     void AddSeparator() override {
-        gtkMenu->append_item(Gio::MenuItem::create());
+        GtkWidget *separator = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+        gtk_popover_menu_add_child(GTK_POPOVER_MENU(gtkMenu), separator, NULL);
+        gtk_widget_show(separator);
     }
-
+    
     void PopUp() override {
+        gtk_widget_show(gtkMenu);
     }
-
+    
     void Clear() override {
-        for (int i = 0; i < gtkMenu->get_n_items(); i++) {
-            gtkMenu->remove(0);
+        GtkWidget *child;
+        while ((child = gtk_widget_get_first_child(gtkMenu)) != NULL) {
+            gtk_widget_unparent(child);
         }
+        
         menuItems.clear();
         subMenus.clear();
     }
@@ -469,29 +430,34 @@ MenuRef CreateMenu() {
 
 class MenuBarImplGtk final : public MenuBar {
 public:
-    Gtk::PopoverMenuBar gtkMenuBar;
-    Glib::RefPtr<Gio::Menu> menuModel;
+    GtkWidget *gtkMenuBar;
     std::vector<std::shared_ptr<MenuImplGtk>> subMenus;
     
     MenuBarImplGtk() {
-        menuModel = Gio::Menu::create();
-        gtkMenuBar.set_menu_model(menuModel);
+        gtkMenuBar = gtk_popover_menu_bar_new();
     }
 
     MenuRef AddSubMenu(const std::string &label) override {
         auto subMenu = std::make_shared<MenuImplGtk>();
         subMenus.push_back(subMenu);
+
+        GtkWidget *menuItem = gtk_button_new_with_label(PrepareMnemonics(label).c_str());
+        gtk_button_set_use_underline(GTK_BUTTON(menuItem), TRUE);
         
-        menuModel->append_submenu(PrepareMnemonics(label), subMenu->gtkMenu);
+        GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        gtk_box_append(GTK_BOX(box), menuItem);
+        gtk_box_append(GTK_BOX(box), subMenu->gtkMenu);
         
-        gtkMenuBar.insert_action_group("menu", subMenu->actionGroup);
+        gtk_popover_menu_bar_add_child(GTK_POPOVER_MENU_BAR(gtkMenuBar), box, NULL);
+        gtk_widget_show(box);
 
         return subMenu;
     }
 
     void Clear() override {
-        for (int i = 0; i < menuModel->get_n_items(); i++) {
-            menuModel->remove(0);
+        GtkWidget *child;
+        while ((child = gtk_widget_get_first_child(gtkMenuBar)) != NULL) {
+            gtk_widget_unparent(child);
         }
         subMenus.clear();
     }
@@ -1525,44 +1491,36 @@ public:
 
 class FileDialogNativeImplGtk final : public FileDialogImplGtk {
 public:
-    Glib::RefPtr<Gtk::FileDialog> gtkNative;
+    GtkFileChooserNative *gtkNative;
 
-    FileDialogNativeImplGtk(Gtk::Window &gtkParent, bool isSave) {
-        gtkNative = Gtk::FileDialog::create();
-        gtkNative->set_modal(true);
-        gtkNative->set_title(isSave ? C_("title", "Save File") : C_("title", "Open File"));
-        gtkNative->set_action(
-            isSave ? Gtk::FileChooser::Action::SAVE : Gtk::FileChooser::Action::OPEN);
-        
+    FileDialogNativeImplGtk(GtkWindow *gtkParent, bool isSave) {
+        gtkNative = gtk_file_chooser_native_new(
+            isSave ? C_("title", "Save File")
+                   : C_("title", "Open File"),
+            gtkParent,
+            isSave ? GTK_FILE_CHOOSER_ACTION_SAVE
+                   : GTK_FILE_CHOOSER_ACTION_OPEN,
+            isSave ? C_("button", "_Save")
+                   : C_("button", "_Open"),
+            C_("button", "_Cancel"));
         if(isSave) {
+            gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(gtkNative), TRUE);
         }
-        
-        InitFileChooser(*gtkNative);
+        // Seriously, GTK?!
+        InitFileChooser(GTK_FILE_CHOOSER(gtkNative));
     }
 
     void SetTitle(std::string title) override {
-        gtkNative->set_title(PrepareTitle(title));
+        gtk_file_chooser_set_title(GTK_FILE_CHOOSER(gtkNative), PrepareTitle(title).c_str());
     }
 
     bool RunModal() override {
         CheckForUntitledFile();
-        
-        bool result = false;
-        auto loop = Glib::MainLoop::create();
-        
-        gtkNative->open([&result, loop](const Glib::RefPtr<Gio::AsyncResult>& res) {
-            try {
-                auto file = gtkNative->open_finish(res);
-                if (file) {
-                    result = true;
-                }
-            } catch (const Glib::Error& e) {
-            }
-            loop->quit();
-        });
-        
-        loop->run();
-        return result;
+        if(gtk_native_dialog_run(GTK_NATIVE_DIALOG(gtkNative)) == GTK_RESPONSE_ACCEPT) {
+            return true;
+        } else {
+            return false;
+        }
     }
 };
 
@@ -1575,12 +1533,12 @@ public:
 #endif
 
 FileDialogRef CreateOpenFileDialog(WindowRef parentWindow) {
-    Gtk::Window &gtkParent = std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow;
+    GtkWindow *gtkParent = GTK_WINDOW(std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow);
     return std::make_shared<FILE_DIALOG_IMPL>(gtkParent, /*isSave=*/false);
 }
 
 FileDialogRef CreateSaveFileDialog(WindowRef parentWindow) {
-    Gtk::Window &gtkParent = std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow;
+    GtkWindow *gtkParent = GTK_WINDOW(std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow);
     return std::make_shared<FILE_DIALOG_IMPL>(gtkParent, /*isSave=*/true);
 }
 
@@ -1614,37 +1572,34 @@ void OpenInBrowser(const std::string &url) {
     gtk_show_uri_on_window(NULL, url.c_str(), GDK_CURRENT_TIME, NULL);
 }
 
-Glib::RefPtr<Gtk::Application> gtkApp;
+GtkApplication *gtkApp;
 
 std::vector<std::string> InitGui(int argc, char **argv) {
-    // It would in principle be possible to judiciously use Glib::filename_{from,to}_utf8,
     // but it's not really worth the effort.
-    // The setlocale() call is necessary for Glib::get_charset() to detect the system
     // character set; otherwise it thinks it is always ANSI_X3.4-1968.
     // We set it back to C after all so that printf() and friends behave in a consistent way.
     setlocale(LC_ALL, "");
-    if(!Glib::get_charset()) {
+    gboolean is_utf8;
+    if(!g_get_charset(&is_utf8)) {
         dbp("Sorry, only UTF-8 locales are supported.");
         exit(1);
     }
     setlocale(LC_ALL, "C");
 
-    gtkApp = Gtk::Application::create("org.solvespace.solvespace", Gio::Application::Flags::NONE);
-
+    gtkApp = gtk_application_new("org.solvespace.SolveSpace", G_APPLICATION_DEFAULT_FLAGS);
+    g_application_run(G_APPLICATION(gtkApp), argc, argv);
+    
     // Now that GTK arguments are removed, grab arguments for ourselves.
     std::vector<std::string> args = InitCli(argc, argv);
 
     // Add our application-specific styles, to override GTK defaults.
-    Glib::RefPtr<Gtk::CssProvider> style_provider = Gtk::CssProvider::create();
-    style_provider->load_from_data(R"(
-    entry {
-        background: white;
-        color: black;
-    }
-    )");
+    GtkCssProvider *style_provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(style_provider, 
+        "entry { background: white; color: black; }", -1);
     
-    Gtk::StyleContext::add_provider_for_display(
-        Gdk::Display::get_default(), style_provider,
+    GdkDisplay *display = gdk_display_get_default();
+    gtk_style_context_add_provider_for_display(
+        display, GTK_STYLE_PROVIDER(style_provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     // Set locale from user preferences.
@@ -1661,15 +1616,14 @@ std::vector<std::string> InitGui(int argc, char **argv) {
 }
 
 void RunGui() {
-    gtkApp->run();
 }
 
 void ExitGui() {
-    gtkApp->quit();
+    g_application_quit(G_APPLICATION(gtkApp));
 }
 
 void ClearGui() {
-    gtkApp.reset();
+    g_object_unref(gtkApp);
 }
 
 }
