@@ -7,27 +7,7 @@
 #include <unistd.h>
 #include <json-c/json_object.h>
 #include <json-c/json_util.h>
-#include <glibmm/convert.h>
-#include <glibmm/main.h>
-#include <gtkmm.h>
-#include <gtkmm/box.h>
-#include <gtkmm/checkbutton.h>
-#include <gtkmm/cssprovider.h>
-#include <gtkmm/entry.h>
-#include <gtkmm/filechooser.h>
-#include <gtkmm/fixed.h>
-#include <gtkmm/glarea.h>
-#include <gtkmm/popovermenu.h>
 #include <gtk/gtk.h>
-#include <gtkmm/messagedialog.h>
-#include <gtkmm/scrollbar.h>
-#include <gtkmm/tooltip.h>
-#include <gtkmm/window.h>
-#include <gtkmm/filechoosernative.h>
-#include <gtkmm/eventcontrollerkey.h>
-#include <gtkmm/eventcontrollermotion.h>
-#include <gtkmm/eventcontrollerscroll.h>
-#include <gtkmm/gestureclick.h>
 #include <gio/gio.h>
 
 #include "config.h"
