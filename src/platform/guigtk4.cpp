@@ -1646,7 +1646,8 @@ public:
             return;
 
         Platform::Path path = GetFilename();
-        if(gtkChooser->get_action() != Gtk::FileChooser::Action::OPEN) {
+        GtkFileChooserAction action = gtk_file_chooser_get_action(gtkChooser);
+        if(action != GTK_FILE_CHOOSER_ACTION_OPEN) {
             SetCurrentName(path.WithExtension(extension).FileName());
         }
     }
