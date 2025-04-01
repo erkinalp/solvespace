@@ -600,54 +600,79 @@ MenuBarRef GetOrCreateMainMenu(bool *unique) {
 // GTK GL and window extensions
 //-----------------------------------------------------------------------------
 
-class GtkGLWidget : public Gtk::GLArea {
+class GtkGLWidget {
     Window *_receiver;
+    GtkWidget *_widget;
     
-    Glib::RefPtr<Gtk::EventControllerMotion> _motion_controller;
-    Glib::RefPtr<Gtk::GestureClick> _click_controller;
-    Glib::RefPtr<Gtk::EventControllerScroll> _scroll_controller;
-    Glib::RefPtr<Gtk::EventControllerKey> _key_controller;
+    GtkEventController *_motion_controller;
+    GtkGesture *_click_controller;
+    GtkEventController *_scroll_controller;
+    GtkEventController *_key_controller;
 
 public:
     GtkGLWidget(Platform::Window *receiver) : _receiver(receiver) {
-        set_has_depth_buffer(true);
-        set_can_focus(true);
-        set_has_alpha(true);
+        _widget = gtk_gl_area_new();
+        gtk_gl_area_set_has_depth_buffer(GTK_GL_AREA(_widget), TRUE);
+        gtk_widget_set_can_focus(_widget, TRUE);
+        gtk_gl_area_set_has_alpha(GTK_GL_AREA(_widget), TRUE);
         
-        _motion_controller = Gtk::EventControllerMotion::create();
-        _motion_controller->signal_motion().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_motion));
-        _motion_controller->signal_leave().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_leave));
-        add_controller(_motion_controller);
+        _motion_controller = gtk_event_controller_motion_new();
+        g_signal_connect(_motion_controller, "motion", G_CALLBACK(+[](GtkEventControllerMotion*, double x, double y, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            self->on_motion(x, y);
+        }), this);
+        g_signal_connect(_motion_controller, "leave", G_CALLBACK(+[](GtkEventControllerMotion*, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            self->on_leave();
+        }), this);
+        gtk_widget_add_controller(_widget, _motion_controller);
         
-        _click_controller = Gtk::GestureClick::create();
-        _click_controller->signal_pressed().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_button_press));
-        _click_controller->signal_released().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_button_release));
-        add_controller(_click_controller);
+        _click_controller = gtk_gesture_click_new();
+        g_signal_connect(_click_controller, "pressed", G_CALLBACK(+[](GtkGestureClick*, int n_press, double x, double y, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            self->on_button_press(n_press, x, y);
+        }), this);
+        g_signal_connect(_click_controller, "released", G_CALLBACK(+[](GtkGestureClick*, int n_press, double x, double y, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            self->on_button_release(n_press, x, y);
+        }), this);
+        gtk_widget_add_controller(_widget, GTK_EVENT_CONTROLLER(_click_controller));
         
-        _scroll_controller = Gtk::EventControllerScroll::create();
-        _scroll_controller->signal_scroll().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_scroll), false);
-        add_controller(_scroll_controller);
+        _scroll_controller = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
+        g_signal_connect(_scroll_controller, "scroll", G_CALLBACK(+[](GtkEventControllerScroll*, double dx, double dy, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            return self->on_scroll(dx, dy);
+        }), this);
+        gtk_widget_add_controller(_widget, _scroll_controller);
         
-        _key_controller = Gtk::EventControllerKey::create();
-        _key_controller->signal_key_pressed().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_key_press), false);
-        _key_controller->signal_key_released().connect(
-            sigc::mem_fun(*this, &GtkGLWidget::on_key_release), false);
-        add_controller(_key_controller);
+        _key_controller = gtk_event_controller_key_new();
+        g_signal_connect(_key_controller, "key-pressed", G_CALLBACK(+[](GtkEventControllerKey*, guint keyval, guint keycode, GdkModifierType state, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            return self->on_key_press(keyval, keycode, state);
+        }), this);
+        g_signal_connect(_key_controller, "key-released", G_CALLBACK(+[](GtkEventControllerKey*, guint keyval, guint keycode, GdkModifierType state, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            return self->on_key_release(keyval, keycode, state);
+        }), this);
+        gtk_widget_add_controller(_widget, _key_controller);
+        
+        g_signal_connect(_widget, "realize", G_CALLBACK(+[](GtkWidget* widget, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            self->on_realize();
+        }), this);
+        
+        g_signal_connect(_widget, "render", G_CALLBACK(+[](GtkGLArea* area, GdkGLContext* context, gpointer user_data) {
+            auto self = static_cast<GtkGLWidget*>(user_data);
+            return self->on_render(context);
+        }), this);
     }
 
 protected:
-    Glib::RefPtr<Gdk::GLContext> on_realize() override {
-        make_current();
-        return get_context();
+    void on_realize() {
+        gtk_gl_area_make_current(GTK_GL_AREA(_widget));
     }
 
-    bool on_render(const Glib::RefPtr<Gdk::GLContext> &context) override {
+    bool on_render(GdkGLContext *context) {
         if(_receiver->onRender) {
             _receiver->onRender();
         }
@@ -1743,41 +1768,41 @@ std::vector<Platform::Path> GetFontFiles() {
 }
 
 void OpenInBrowser(const std::string &url) {
-    gtk_show_uri(NULL, url.c_str(), GDK_CURRENT_TIME);
+    GError *error = NULL;
+    gtk_show_uri_on_window(NULL, url.c_str(), GDK_CURRENT_TIME, &error);
+    if (error) {
+        g_error_free(error);
+    }
 }
 
-Glib::RefPtr<Gtk::Application> gtkApp;
+GtkApplication *gtkApp = NULL;
 
 std::vector<std::string> InitGui(int argc, char **argv) {
-    // It would in principle be possible to judiciously use Glib::filename_{from,to}_utf8,
     // but it's not really worth the effort.
-    // The setlocale() call is necessary for Glib::get_charset() to detect the system
-    // character set; otherwise it thinks it is always ANSI_X3.4-1968.
     // We set it back to C after all so that printf() and friends behave in a consistent way.
     setlocale(LC_ALL, "");
-    if(!Glib::get_charset()) {
+    gboolean is_utf8 = g_get_charset(NULL);
+    if(!is_utf8) {
         dbp("Sorry, only UTF-8 locales are supported.");
         exit(1);
     }
     setlocale(LC_ALL, "C");
 
-    gtkApp = Gtk::Application::create("org.solvespace.solvespace");
+    gtkApp = gtk_application_new("org.solvespace.solvespace", G_APPLICATION_DEFAULT_FLAGS);
     
     // Now that GTK arguments are removed, grab arguments for ourselves.
-    std::vector<std::string> args = InitCli(argc, argv);
+    std::vector<std::string> args = SolveSpace::Platform::InitCli(argc, argv);
 
     // Add our application-specific styles, to override GTK defaults.
-    Glib::RefPtr<Gtk::CssProvider> style_provider = Gtk::CssProvider::create();
-    style_provider->load_from_data(R"(
-    entry {
-        background: white;
-        color: black;
-    }
-    )");
+    GtkCssProvider *style_provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(style_provider, 
+        "entry { background: white; color: black; }", -1);
     
-    Gtk::StyleContext::add_provider_for_display(
-        Gdk::Display::get_default(), style_provider,
+    GdkDisplay *display = gdk_display_get_default();
+    gtk_style_context_add_provider_for_display(
+        display, GTK_STYLE_PROVIDER(style_provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(style_provider);
 
     // Set locale from user preferences.
     // This apparently only consults the LANGUAGE environment variable.
@@ -1793,15 +1818,18 @@ std::vector<std::string> InitGui(int argc, char **argv) {
 }
 
 void RunGui() {
-    gtkApp->run();
+    g_application_run(G_APPLICATION(gtkApp), 0, NULL);
 }
 
 void ExitGui() {
-    gtkApp->quit();
+    g_application_quit(G_APPLICATION(gtkApp));
 }
 
 void ClearGui() {
-    gtkApp.reset();
+    if (gtkApp) {
+        g_object_unref(gtkApp);
+        gtkApp = NULL;
+    }
 }
 
 }
