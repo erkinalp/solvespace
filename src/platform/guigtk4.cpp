@@ -1435,30 +1435,30 @@ public:
         switch(type) {
             case Type::INFORMATION:
                 icon_name = "dialog-information";
-                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_INFO);
+                g_object_set(GTK_MESSAGE_DIALOG(gtkDialog), "message-type", GTK_MESSAGE_INFO, NULL);
                 break;
 
             case Type::QUESTION:
                 icon_name = "dialog-question";
-                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_QUESTION);
+                g_object_set(GTK_MESSAGE_DIALOG(gtkDialog), "message-type", GTK_MESSAGE_QUESTION, NULL);
                 break;
 
             case Type::WARNING:
                 icon_name = "dialog-warning";
-                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_WARNING);
+                g_object_set(GTK_MESSAGE_DIALOG(gtkDialog), "message-type", GTK_MESSAGE_WARNING, NULL);
                 break;
 
             case Type::ERROR:
                 icon_name = "dialog-error";
-                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_ERROR);
+                g_object_set(GTK_MESSAGE_DIALOG(gtkDialog), "message-type", GTK_MESSAGE_ERROR, NULL);
                 break;
         }
-        gtk_image_set_from_icon_name(GTK_IMAGE(gtkImage), icon_name);
+        gtk_image_set_from_icon_name(GTK_IMAGE(gtkImage), icon_name, GTK_ICON_SIZE_DIALOG);
         gtk_message_dialog_set_image(GTK_MESSAGE_DIALOG(gtkDialog), gtkImage);
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
+        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
     }
 
     void SetMessage(std::string message) override {
@@ -1698,7 +1698,7 @@ public:
         
         gtkDialog = gtk_file_chooser_dialog_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            (GtkWindow*)parentWidget,
+            GTK_WINDOW(parentWidget),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             C_("button", "_Cancel"), GTK_RESPONSE_CANCEL,
             isSave ? C_("button", "_Save") : C_("button", "_Open"), GTK_RESPONSE_OK,
@@ -1712,7 +1712,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
+        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
     }
 
     bool RunModal() override {
@@ -1733,7 +1733,7 @@ public:
         
         gtkNative = gtk_file_chooser_native_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            (GtkWindow*)parentWidget,
+            GTK_WINDOW(parentWidget),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             isSave ? C_("button", "_Save") : C_("button", "_Open"),
             C_("button", "_Cancel"));
@@ -1801,7 +1801,7 @@ std::vector<Platform::Path> GetFontFiles() {
 
 void OpenInBrowser(const std::string &url) {
     GError *error = NULL;
-    gtk_show_uri(NULL, url.c_str(), GDK_CURRENT_TIME, &error);
+    gtk_show_uri_on_window(NULL, url.c_str(), GDK_CURRENT_TIME, &error);
     if (error) {
         g_error_free(error);
     }
