@@ -611,6 +611,8 @@ class GtkGLWidget {
     GtkEventController *_key_controller;
 
 public:
+    GtkWidget* get_widget() { return _widget; }
+    void queue_render() { gtk_widget_queue_draw(_widget); }
     GtkGLWidget(Platform::Window *receiver) : _receiver(receiver) {
         _widget = gtk_gl_area_new();
         gtk_gl_area_set_has_depth_buffer(GTK_GL_AREA(_widget), TRUE);
@@ -876,6 +878,7 @@ class GtkEditorOverlay {
     GtkWidget   *_entry;
 
 public:
+    GtkWidget* get_widget() { return _widget; }
     GtkEditorOverlay(Platform::Window *receiver) : _receiver(receiver), _gl_widget(receiver) {
         _widget = gtk_fixed_new();
         gtk_fixed_put(GTK_FIXED(_widget), _gl_widget._widget, 0, 0);
@@ -982,10 +985,15 @@ class GtkWindow {
     
     GtkEventController *_motion_controller;
     GtkEventController *_key_controller;
-
+    
 public:
     GtkWidget* get_widget() { return _widget; }
-    GtkWindow* get_gtk_window() { return GTK_WINDOW(_widget); }
+    ::GtkWindow* get_gtk_window() { return GTK_WINDOW(_widget); }
+    GtkWidget* get_scrollbar() { return _scrollbar; }
+    GtkWidget* get_gl_widget() { return _editor_overlay.get_widget(); }
+    void set_transient_for(GtkWindow& parent) {
+        gtk_window_set_transient_for(GTK_WINDOW(_widget), parent.get_gtk_window());
+    }
     GtkWindow(Platform::Window *receiver) : _receiver(receiver), _editor_overlay(receiver) {
         _widget = gtk_window_new();
         _vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -1274,15 +1282,19 @@ public:
     }
 
     double GetScrollbarPosition() override {
-        return gtkWindow.get_scrollbar().get_adjustment()->get_value();
+        GtkWidget* scrollbar = gtkWindow.get_scrollbar();
+        GtkAdjustment* adj = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(scrollbar));
+        return gtk_adjustment_get_value(adj);
     }
 
     void SetScrollbarPosition(double pos) override {
-        return gtkWindow.get_scrollbar().get_adjustment()->set_value(pos);
+        GtkWidget* scrollbar = gtkWindow.get_scrollbar();
+        GtkAdjustment* adj = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(scrollbar));
+        gtk_adjustment_set_value(adj, pos);
     }
 
     void Invalidate() override {
-        gtkWindow.get_gl_widget().queue_render();
+        gtk_widget_queue_draw(gtkWindow.get_gl_widget());
     }
 };
 
@@ -1459,7 +1471,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
+        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
     }
 
     void SetMessage(std::string message) override {
@@ -1713,7 +1725,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
+        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
     }
 
     bool RunModal() override {
