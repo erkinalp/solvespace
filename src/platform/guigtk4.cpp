@@ -1269,16 +1269,15 @@ public:
     }
 
     void SetScrollbarVisible(bool visible) override {
-        if(visible) {
-            gtkWindow.get_scrollbar().set_visible(true);
-        } else {
-            gtkWindow.get_scrollbar().set_visible(false);
-        }
+        GtkWidget* scrollbar = gtkWindow.get_scrollbar();
+        gtk_widget_set_visible(scrollbar, visible);
     }
 
     void ConfigureScrollbar(double min, double max, double pageSize) override {
-        auto adjustment = gtkWindow.get_scrollbar().get_adjustment();
-        adjustment->configure(adjustment->get_value(), min, max, 1, 4, pageSize);
+        GtkWidget* scrollbar = gtkWindow.get_scrollbar();
+        GtkAdjustment* adjustment = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(scrollbar));
+        gtk_adjustment_configure(adjustment, gtk_adjustment_get_value(adjustment), 
+                                min, max, 1, 4, pageSize);
     }
 
     double GetScrollbarPosition() override {
@@ -1711,7 +1710,7 @@ public:
         
         gtkDialog = gtk_file_chooser_dialog_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            gtkParent.get_gtk_window(),
+            GTK_WINDOW(gtkParent.get_gtk_window()),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             C_("button", "_Cancel"), GTK_RESPONSE_CANCEL,
             isSave ? C_("button", "_Save") : C_("button", "_Open"), GTK_RESPONSE_OK,
