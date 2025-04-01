@@ -985,6 +985,7 @@ class GtkWindow {
 
 public:
     GtkWidget* get_widget() { return _widget; }
+    GtkWindow* get_gtk_window() { return GTK_WINDOW(_widget); }
     GtkWindow(Platform::Window *receiver) : _receiver(receiver), _editor_overlay(receiver) {
         _widget = gtk_window_new();
         _vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -1458,7 +1459,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
+        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
     }
 
     void SetMessage(std::string message) override {
@@ -1698,7 +1699,7 @@ public:
         
         gtkDialog = gtk_file_chooser_dialog_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            GTK_WINDOW(parentWidget),
+            gtkParent.get_gtk_window(),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             C_("button", "_Cancel"), GTK_RESPONSE_CANCEL,
             isSave ? C_("button", "_Save") : C_("button", "_Open"), GTK_RESPONSE_OK,
@@ -1712,7 +1713,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
+        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
     }
 
     bool RunModal() override {
@@ -1733,7 +1734,7 @@ public:
         
         gtkNative = gtk_file_chooser_native_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            GTK_WINDOW(parentWidget),
+            gtkParent.get_gtk_window(),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             isSave ? C_("button", "_Save") : C_("button", "_Open"),
             C_("button", "_Cancel"));
