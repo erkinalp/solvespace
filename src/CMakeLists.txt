@@ -439,18 +439,33 @@ if(ENABLE_GUI)
             message(STATUS "Using GTK3 for GUI")
         endif()
 
-        target_include_directories(solvespace SYSTEM PRIVATE
-            ${GTKMM_INCLUDE_DIRS}
-            ${JSONC_INCLUDE_DIRS}
-            ${FONTCONFIG_INCLUDE_DIRS})
-        target_link_directories(solvespace PRIVATE
-            ${GTKMM_LIBRARY_DIRS}
-            ${JSONC_LIBRARY_DIRS}
-            ${FONTCONFIG_LIBRARY_DIRS})
-        target_link_libraries(solvespace PRIVATE
-            ${GTKMM_LIBRARIES}
-            ${JSONC_LIBRARIES}
-            ${FONTCONFIG_LIBRARIES})
+        if(DEFINED GTK4_FOUND AND GTK4_FOUND)
+            target_include_directories(solvespace SYSTEM PRIVATE
+                ${GTK4_INCLUDE_DIRS}
+                ${JSONC_INCLUDE_DIRS}
+                ${FONTCONFIG_INCLUDE_DIRS})
+            target_link_directories(solvespace PRIVATE
+                ${GTK4_LIBRARY_DIRS}
+                ${JSONC_LIBRARY_DIRS}
+                ${FONTCONFIG_LIBRARY_DIRS})
+            target_link_libraries(solvespace PRIVATE
+                ${GTK4_LIBRARIES}
+                ${JSONC_LIBRARIES}
+                ${FONTCONFIG_LIBRARIES})
+        else()
+            target_include_directories(solvespace SYSTEM PRIVATE
+                ${GTKMM_INCLUDE_DIRS}
+                ${JSONC_INCLUDE_DIRS}
+                ${FONTCONFIG_INCLUDE_DIRS})
+            target_link_directories(solvespace PRIVATE
+                ${GTKMM_LIBRARY_DIRS}
+                ${JSONC_LIBRARY_DIRS}
+                ${FONTCONFIG_LIBRARY_DIRS})
+            target_link_libraries(solvespace PRIVATE
+                ${GTKMM_LIBRARIES}
+                ${JSONC_LIBRARIES}
+                ${FONTCONFIG_LIBRARIES})
+        endif()
     endif()
 
     if(MSVC)
