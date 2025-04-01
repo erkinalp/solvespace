@@ -8,6 +8,14 @@ include_directories(
 
 set(HAVE_SPACEWARE ${SPACEWARE_FOUND})
 
+# Set C++17 standard required for GTK4
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Check for GTK4
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GTKMM_4_0 gtkmm-4.0)
+
 if(NOT WIN32 OR APPLE)
     if(GTKMM_gtkmm-3.0_VERSION VERSION_LESS "3.24.0")
         set(HAVE_GTK_FILECHOOSERNATIVE 0)
@@ -165,6 +173,7 @@ if(ENABLE_GUI OR ENABLE_CLI)
     set(every_platform_SOURCES
         platform/guiwin.cpp
         platform/guigtk.cpp
+        platform/guigtk4.cpp
         platform/guimac.mm
         platform/guihtml.cpp)
 
@@ -418,8 +427,13 @@ if(ENABLE_GUI)
             COMMENT "Copying UI script filemanagerui.sj"
             VERBATIM)
     else()
-        target_sources(solvespace PRIVATE
-            platform/guigtk.cpp)
+        if(DEFINED GTKMM_4_0_FOUND AND GTKMM_4_0_FOUND)
+            target_sources(solvespace PRIVATE
+                platform/guigtk4.cpp)
+        else()
+            target_sources(solvespace PRIVATE
+                platform/guigtk.cpp)
+        endif()
 
         target_include_directories(solvespace SYSTEM PRIVATE
             ${GTKMM_INCLUDE_DIRS}
