@@ -1652,23 +1652,37 @@ public:
     }
 
     void FreezeChoices(SettingsRef settings, const std::string &key) override {
-        auto folder = gtkChooser->get_current_folder();
+        char *folder = gtk_file_chooser_get_current_folder(gtkChooser);
         if (folder) {
-            settings->FreezeString("Dialog_" + key + "_Folder", folder->get_path());
+            settings->FreezeString("Dialog_" + key + "_Folder", folder);
+            g_free(folder);
         }
         settings->FreezeString("Dialog_" + key + "_Filter", GetExtension());
     }
 
     void ThawChoices(SettingsRef settings, const std::string &key) override {
-        auto folder = Gio::File::create_for_path(settings->ThawString("Dialog_" + key + "_Folder"));
-        gtkChooser->set_current_folder(folder);
+        std::string folder_path = settings->ThawString("Dialog_" + key + "_Folder");
+        if (!folder_path.empty()) {
+            gtk_file_chooser_set_current_folder(gtkChooser, folder_path.c_str());
+        }
         SetExtension(settings->ThawString("Dialog_" + key + "_Filter"));
     }
 
     void CheckForUntitledFile() {
-        if(gtkChooser->get_action() == Gtk::FileChooser::Action::SAVE &&
-                Path::From(gtkChooser->get_current_name()).FileStem().empty()) {
-            gtkChooser->set_current_name(std::string(_("untitled")) + "." + GetExtension());
+        GtkFileChooserAction action = gtk_file_chooser_get_action(gtkChooser);
+        if(action == GTK_FILE_CHOOSER_ACTION_SAVE) {
+            char *current_name = gtk_file_chooser_get_current_name(gtkChooser);
+            if(current_name) {
+                std::string name(current_name);
+                g_free(current_name);
+                if(Path::From(name).FileStem().empty()) {
+                    gtk_file_chooser_set_current_name(gtkChooser, 
+                        (std::string(_("untitled")) + "." + GetExtension()).c_str());
+                }
+            } else {
+                gtk_file_chooser_set_current_name(gtkChooser, 
+                    (std::string(_("untitled")) + "." + GetExtension()).c_str());
+            }
         }
     }
 };
