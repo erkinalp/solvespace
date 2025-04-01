@@ -984,6 +984,7 @@ class GtkWindow {
     GtkEventController *_key_controller;
 
 public:
+    GtkWidget* get_widget() { return _widget; }
     GtkWindow(Platform::Window *receiver) : _receiver(receiver), _editor_overlay(receiver) {
         _widget = gtk_window_new();
         _vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -1676,11 +1677,13 @@ class FileDialogGtkImplGtk final : public FileDialogImplGtk {
 public:
     GtkWidget *gtkDialog;
 
-    FileDialogGtkImplGtk(GtkWindow *gtkParent, bool isSave)
+    FileDialogGtkImplGtk(GtkWindow &gtkParent, bool isSave)
     {
+        GtkWidget *parentWidget = gtkParent.get_widget();
+        
         gtkDialog = gtk_file_chooser_dialog_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            gtkParent,
+            GTK_WINDOW(parentWidget),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             C_("button", "_Cancel"), GTK_RESPONSE_CANCEL,
             isSave ? C_("button", "_Save") : C_("button", "_Open"), GTK_RESPONSE_OK,
@@ -1710,10 +1713,12 @@ class FileDialogNativeImplGtk final : public FileDialogImplGtk {
 public:
     GtkFileChooserNative *gtkNative;
 
-    FileDialogNativeImplGtk(GtkWindow *gtkParent, bool isSave) {
+    FileDialogNativeImplGtk(GtkWindow &gtkParent, bool isSave) {
+        GtkWidget *parentWidget = gtkParent.get_widget();
+        
         gtkNative = gtk_file_chooser_native_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            gtkParent,
+            GTK_WINDOW(parentWidget),
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             isSave ? C_("button", "_Save") : C_("button", "_Open"),
             C_("button", "_Cancel"));
@@ -1743,12 +1748,12 @@ public:
 #endif
 
 FileDialogRef CreateOpenFileDialog(WindowRef parentWindow) {
-    GtkWindow *gtkParent = GTK_WINDOW(std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow);
+    GtkWindow &gtkParent = std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow;
     return std::make_shared<FILE_DIALOG_IMPL>(gtkParent, /*isSave=*/false);
 }
 
 FileDialogRef CreateSaveFileDialog(WindowRef parentWindow) {
-    GtkWindow *gtkParent = GTK_WINDOW(std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow);
+    GtkWindow &gtkParent = std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow;
     return std::make_shared<FILE_DIALOG_IMPL>(gtkParent, /*isSave=*/true);
 }
 
