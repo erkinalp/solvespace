@@ -427,12 +427,16 @@ if(ENABLE_GUI)
             COMMENT "Copying UI script filemanagerui.sj"
             VERBATIM)
     else()
-        if(DEFINED GTKMM_4_0_FOUND AND GTKMM_4_0_FOUND)
+        # Check for GTK4 directly since gtkmm-4.0 might not be available
+        pkg_check_modules(GTK4 gtk4)
+        if(DEFINED GTK4_FOUND AND GTK4_FOUND)
             target_sources(solvespace PRIVATE
                 platform/guigtk4.cpp)
+            message(STATUS "Using GTK4 for GUI")
         else()
             target_sources(solvespace PRIVATE
                 platform/guigtk.cpp)
+            message(STATUS "Using GTK3 for GUI")
         endif()
 
         target_include_directories(solvespace SYSTEM PRIVATE
