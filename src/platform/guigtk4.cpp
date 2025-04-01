@@ -9,6 +9,7 @@
 #include <json-c/json_util.h>
 #include <gtk/gtk.h>
 #include <gio/gio.h>
+#include <fontconfig/fontconfig.h>
 
 #include "config.h"
 
@@ -1417,75 +1418,82 @@ static std::vector<std::shared_ptr<MessageDialogImplGtk>> shownMessageDialogs;
 class MessageDialogImplGtk final : public MessageDialog,
                                    public std::enable_shared_from_this<MessageDialogImplGtk> {
 public:
-    Gtk::Image         gtkImage;
-    Gtk::MessageDialog gtkDialog;
+    GtkWidget *gtkImage;
+    GtkWidget *gtkDialog;
 
-    MessageDialogImplGtk(Gtk::Window &parent)
-        : gtkDialog(parent, "", /*use_markup=*/false, Gtk::MESSAGE_INFO,
-                    Gtk::BUTTONS_NONE, /*modal=*/true)
+    MessageDialogImplGtk()
     {
+        gtkDialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, 
+                                          GTK_MESSAGE_INFO, GTK_BUTTONS_NONE, "%s", "");
+        gtkImage = gtk_image_new();
         SetTitle("Message");
     }
 
     void SetType(Type type) override {
+        const char* icon_name = NULL;
         switch(type) {
             case Type::INFORMATION:
-                gtkImage.set_from_icon_name("dialog-information", Gtk::ICON_SIZE_DIALOG);
+                icon_name = "dialog-information";
+                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_INFO);
                 break;
 
             case Type::QUESTION:
-                gtkImage.set_from_icon_name("dialog-question", Gtk::ICON_SIZE_DIALOG);
+                icon_name = "dialog-question";
+                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_QUESTION);
                 break;
 
             case Type::WARNING:
-                gtkImage.set_from_icon_name("dialog-warning", Gtk::ICON_SIZE_DIALOG);
+                icon_name = "dialog-warning";
+                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_WARNING);
                 break;
 
             case Type::ERROR:
-                gtkImage.set_from_icon_name("dialog-error", Gtk::ICON_SIZE_DIALOG);
+                icon_name = "dialog-error";
+                gtk_message_dialog_set_message_type(GTK_MESSAGE_DIALOG(gtkDialog), GTK_MESSAGE_ERROR);
                 break;
         }
-        gtkDialog.set_image(gtkImage);
+        gtk_image_set_from_icon_name(GTK_IMAGE(gtkImage), icon_name);
+        gtk_message_dialog_set_image(GTK_MESSAGE_DIALOG(gtkDialog), gtkImage);
     }
 
     void SetTitle(std::string title) override {
-        gtkDialog.set_title(PrepareTitle(title));
+        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
     }
 
     void SetMessage(std::string message) override {
-        gtkDialog.set_message(message);
+        gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(gtkDialog), message.c_str());
     }
 
     void SetDescription(std::string description) override {
-        gtkDialog.set_secondary_text(description);
+        gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(gtkDialog), "%s", description.c_str());
     }
 
     void AddButton(std::string label, Response response, bool isDefault) override {
         int responseId = 0;
         switch(response) {
             case Response::NONE:   ssassert(false, "Unexpected response");
-            case Response::OK:     responseId = Gtk::RESPONSE_OK;     break;
-            case Response::YES:    responseId = Gtk::RESPONSE_YES;    break;
-            case Response::NO:     responseId = Gtk::RESPONSE_NO;     break;
-            case Response::CANCEL: responseId = Gtk::RESPONSE_CANCEL; break;
+            case Response::OK:     responseId = GTK_RESPONSE_OK;     break;
+            case Response::YES:    responseId = GTK_RESPONSE_YES;    break;
+            case Response::NO:     responseId = GTK_RESPONSE_NO;     break;
+            case Response::CANCEL: responseId = GTK_RESPONSE_CANCEL; break;
         }
-        gtkDialog.add_button(PrepareMnemonics(label), responseId);
+        gtk_dialog_add_button(GTK_DIALOG(gtkDialog), PrepareMnemonics(label).c_str(), responseId);
         if(isDefault) {
-            gtkDialog.set_default_response(responseId);
+            gtk_dialog_set_default_response(GTK_DIALOG(gtkDialog), responseId);
         }
     }
 
     Response ProcessResponse(int gtkResponse) {
         Response response;
         switch(gtkResponse) {
-            case Gtk::RESPONSE_OK:     response = Response::OK;     break;
-            case Gtk::RESPONSE_YES:    response = Response::YES;    break;
-            case Gtk::RESPONSE_NO:     response = Response::NO;     break;
-            case Gtk::RESPONSE_CANCEL: response = Response::CANCEL; break;
+            case GTK_RESPONSE_OK:     response = Response::OK;     break;
+            case GTK_RESPONSE_YES:    response = Response::YES;    break;
+            case GTK_RESPONSE_NO:     response = Response::NO;     break;
+            case GTK_RESPONSE_CANCEL: response = Response::CANCEL; break;
 
-            case Gtk::RESPONSE_NONE:
-            case Gtk::RESPONSE_CLOSE:
-            case Gtk::RESPONSE_DELETE_EVENT:
+            case GTK_RESPONSE_NONE:
+            case GTK_RESPONSE_CLOSE:
+            case GTK_RESPONSE_DELETE_EVENT:
                 response = Response::NONE;
                 break;
 
@@ -1499,28 +1507,29 @@ public:
     }
 
     void ShowModal() override {
-        gtkDialog.signal_hide().connect([this] {
+        g_signal_connect(gtkDialog, "hide", G_CALLBACK(+[](GtkWidget *widget, gpointer user_data) {
+            auto self = static_cast<MessageDialogImplGtk*>(user_data);
             auto it = std::remove(shownMessageDialogs.begin(), shownMessageDialogs.end(),
-                                  shared_from_this());
+                                  self->shared_from_this());
             shownMessageDialogs.erase(it);
-        });
+        }), this);
         shownMessageDialogs.push_back(shared_from_this());
 
-        gtkDialog.signal_response().connect([this](int gtkResponse) {
-            ProcessResponse(gtkResponse);
-            gtkDialog.hide();
-        });
-        gtkDialog.show();
+        g_signal_connect(gtkDialog, "response", G_CALLBACK(+[](GtkDialog *dialog, gint response_id, gpointer user_data) {
+            auto self = static_cast<MessageDialogImplGtk*>(user_data);
+            self->ProcessResponse(response_id);
+            gtk_widget_hide(GTK_WIDGET(dialog));
+        }), this);
+        gtk_widget_show(gtkDialog);
     }
 
     Response RunModal() override {
-        return ProcessResponse(gtkDialog.run());
+        return ProcessResponse(gtk_dialog_run(GTK_DIALOG(gtkDialog)));
     }
 };
 
 MessageDialogRef CreateMessageDialog(WindowRef parentWindow) {
-    return std::make_shared<MessageDialogImplGtk>(
-                std::static_pointer_cast<WindowImplGtk>(parentWindow)->gtkWindow);
+    return std::make_shared<MessageDialogImplGtk>();
 }
 
 //-----------------------------------------------------------------------------
@@ -1732,6 +1741,7 @@ FileDialogRef CreateSaveFileDialog(WindowRef parentWindow) {
 std::vector<Platform::Path> GetFontFiles() {
     std::vector<Platform::Path> fonts;
 
+#ifdef FC_WEIGHT_REGULAR
     // fontconfig is already initialized by GTK
     FcPattern   *pat = FcPatternCreate();
     FcObjectSet *os  = FcObjectSetBuild(FC_FILE, (char *)0);
@@ -1746,13 +1756,14 @@ std::vector<Platform::Path> GetFontFiles() {
     FcFontSetDestroy(fs);
     FcObjectSetDestroy(os);
     FcPatternDestroy(pat);
+#endif
 
     return fonts;
 }
 
 void OpenInBrowser(const std::string &url) {
     GError *error = NULL;
-    gtk_show_uri_on_window(NULL, url.c_str(), GDK_CURRENT_TIME, &error);
+    gtk_show_uri(NULL, url.c_str(), GDK_CURRENT_TIME, &error);
     if (error) {
         g_error_free(error);
     }
@@ -1771,7 +1782,7 @@ std::vector<std::string> InitGui(int argc, char **argv) {
     }
     setlocale(LC_ALL, "C");
 
-    gtkApp = gtk_application_new("org.solvespace.solvespace", G_APPLICATION_DEFAULT_FLAGS);
+    gtkApp = gtk_application_new("org.solvespace.solvespace", G_APPLICATION_FLAGS_NONE);
     
     // Now that GTK arguments are removed, grab arguments for ourselves.
     std::vector<std::string> args = SolveSpace::Platform::InitCli(argc, argv);
@@ -1779,7 +1790,7 @@ std::vector<std::string> InitGui(int argc, char **argv) {
     // Add our application-specific styles, to override GTK defaults.
     GtkCssProvider *style_provider = gtk_css_provider_new();
     gtk_css_provider_load_from_data(style_provider, 
-        "entry { background: white; color: black; }", -1);
+        "entry { background: white; color: black; }", -1, NULL);
     
     GdkDisplay *display = gdk_display_get_default();
     gtk_style_context_add_provider_for_display(
