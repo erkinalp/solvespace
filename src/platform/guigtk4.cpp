@@ -999,7 +999,7 @@ public:
         gtk_box_append(GTK_BOX(_hbox), _editor_overlay.get_widget());
         gtk_box_append(GTK_BOX(_hbox), _scrollbar);
         gtk_box_append(GTK_BOX(_vbox), _hbox);
-        gtk_window_set_child(GTK_WINDOW(_widget), _vbox);
+        gtk_window_set_child((GtkWindow*)(_widget), _vbox);
         
         GtkAdjustment *adjustment = gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(_scrollbar));
         g_signal_connect(adjustment, "value-changed", G_CALLBACK(+[](GtkAdjustment *adj, gpointer user_data) {
@@ -1458,7 +1458,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
+        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
     }
 
     void SetMessage(std::string message) override {
@@ -1683,7 +1683,7 @@ public:
         
         gtkDialog = gtk_file_chooser_dialog_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            GTK_WINDOW(parentWidget),
+            (GtkWindow*)parentWidget,
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             C_("button", "_Cancel"), GTK_RESPONSE_CANCEL,
             isSave ? C_("button", "_Save") : C_("button", "_Open"), GTK_RESPONSE_OK,
@@ -1697,7 +1697,7 @@ public:
     }
 
     void SetTitle(std::string title) override {
-        gtk_window_set_title(GTK_WINDOW(gtkDialog), PrepareTitle(title).c_str());
+        gtk_window_set_title((GtkWindow*)gtkDialog, PrepareTitle(title).c_str());
     }
 
     bool RunModal() override {
@@ -1718,7 +1718,7 @@ public:
         
         gtkNative = gtk_file_chooser_native_new(
             isSave ? C_("title", "Save File") : C_("title", "Open File"),
-            GTK_WINDOW(parentWidget),
+            (GtkWindow*)parentWidget,
             isSave ? GTK_FILE_CHOOSER_ACTION_SAVE : GTK_FILE_CHOOSER_ACTION_OPEN,
             isSave ? C_("button", "_Save") : C_("button", "_Open"),
             C_("button", "_Cancel"));
