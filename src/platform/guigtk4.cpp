@@ -868,159 +868,142 @@ protected:
     }
 };
 
-class GtkEditorOverlay : public Gtk::Fixed {
+class GtkEditorOverlay {
     Window      *_receiver;
     GtkGLWidget _gl_widget;
-    Gtk::Entry  _entry;
+    GtkWidget   *_widget;
+    GtkWidget   *_entry;
 
 public:
     GtkEditorOverlay(Platform::Window *receiver) : _receiver(receiver), _gl_widget(receiver) {
-        add(_gl_widget);
+        _widget = gtk_fixed_new();
+        gtk_fixed_put(GTK_FIXED(_widget), _gl_widget._widget, 0, 0);
 
-        _entry.set_no_show_all(true);
-        _entry.set_has_frame(false);
-        add(_entry);
+        _entry = gtk_entry_new();
+        gtk_widget_set_visible(_entry, FALSE);
+        gtk_entry_set_has_frame(GTK_ENTRY(_entry), FALSE);
+        gtk_fixed_put(GTK_FIXED(_widget), _entry, 0, 0);
 
-        _entry.signal_activate().
-            connect(sigc::mem_fun(this, &GtkEditorOverlay::on_activate));
+        g_signal_connect(_entry, "activate", G_CALLBACK(+[](GtkEntry* entry, gpointer user_data) {
+            auto self = static_cast<GtkEditorOverlay*>(user_data);
+            self->on_activate();
+        }), this);
     }
 
     bool is_editing() const {
-        return _entry.is_visible();
+        return gtk_widget_get_visible(_entry);
     }
 
     void start_editing(int x, int y, int font_height, int min_width, bool is_monospace,
                        const std::string &val) {
-        Pango::FontDescription font_desc;
-        font_desc.set_family(is_monospace ? "monospace" : "normal");
-        font_desc.set_absolute_size(font_height * Pango::SCALE);
-        _entry.override_font(font_desc);
+        PangoFontDescription *font_desc = pango_font_description_new();
+        pango_font_description_set_family(font_desc, is_monospace ? "monospace" : "normal");
+        pango_font_description_set_absolute_size(font_desc, font_height * PANGO_SCALE);
+        gtk_widget_override_font(_entry, font_desc);
 
         // The y coordinate denotes baseline.
-        Pango::FontMetrics font_metrics = get_pango_context()->get_metrics(font_desc);
-        y -= font_metrics.get_ascent() / Pango::SCALE;
+        PangoContext *pango_context = gtk_widget_get_pango_context(_entry);
+        PangoFontMetrics *font_metrics = pango_context_get_metrics(pango_context, font_desc, NULL);
+        int ascent = pango_font_metrics_get_ascent(font_metrics) / PANGO_SCALE;
+        int descent = pango_font_metrics_get_descent(font_metrics) / PANGO_SCALE;
+        y -= ascent;
 
-        Glib::RefPtr<Pango::Layout> layout = Pango::Layout::create(get_pango_context());
-        layout->set_font_description(font_desc);
+        PangoLayout *layout = pango_layout_new(pango_context);
+        pango_layout_set_font_description(layout, font_desc);
         // Add one extra char width to avoid scrolling.
-        layout->set_text(val + " ");
-        int width = layout->get_logical_extents().get_width();
+        pango_layout_set_text(layout, (val + " ").c_str(), -1);
+        PangoRectangle rect;
+        pango_layout_get_extents(layout, NULL, &rect);
+        int width = rect.width;
+        g_object_unref(layout);
 
-        Gtk::Border margin  = _entry.get_style_context()->get_margin();
-        Gtk::Border border  = _entry.get_style_context()->get_border();
-        Gtk::Border padding = _entry.get_style_context()->get_padding();
-        move(_entry,
-             x - margin.get_left() - border.get_left() - padding.get_left(),
-             y - margin.get_top()  - border.get_top()  - padding.get_top());
+        GtkStyleContext *style_context = gtk_widget_get_style_context(_entry);
+        GtkBorder margin, border, padding;
+        gtk_style_context_get_margin(style_context, GTK_STATE_FLAG_NORMAL, &margin);
+        gtk_style_context_get_border(style_context, GTK_STATE_FLAG_NORMAL, &border);
+        gtk_style_context_get_padding(style_context, GTK_STATE_FLAG_NORMAL, &padding);
+        gtk_fixed_move(GTK_FIXED(_widget), _entry,
+             x - margin.left - border.left - padding.left,
+             y - margin.top  - border.top  - padding.top);
 
-        int fitWidth = width / Pango::SCALE + padding.get_left() + padding.get_right();
-        _entry.set_size_request(max(fitWidth, min_width), -1);
-        queue_resize();
+        int fitWidth = width / PANGO_SCALE + padding.left + padding.right;
+        gtk_widget_set_size_request(_entry, std::max(fitWidth, min_width), -1);
+        gtk_widget_queue_resize(_widget);
 
-        _entry.set_text(val);
+        gtk_entry_set_text(GTK_ENTRY(_entry), val.c_str());
 
-        if(!_entry.is_visible()) {
-            _entry.show();
-            _entry.grab_focus();
+        if(!gtk_widget_get_visible(_entry)) {
+            gtk_widget_set_visible(_entry, TRUE);
+            gtk_widget_grab_focus(_entry);
 
             // We grab the input for ourselves and not the entry to still have
             // the pointer events go through the underlay.
-            add_modal_grab();
+            gtk_grab_add(_widget);
         }
     }
 
     void stop_editing() {
-        if(_entry.is_visible()) {
-            remove_modal_grab();
-            _entry.hide();
-            _gl_widget.grab_focus();
+        if(gtk_widget_get_visible(_entry)) {
+            gtk_grab_remove(_widget);
+            gtk_widget_set_visible(_entry, FALSE);
+            gtk_widget_grab_focus(_gl_widget._widget);
         }
+    }
+
+    GtkWidget *get_widget() {
+        return _widget;
     }
 
     GtkGLWidget &get_gl_widget() {
         return _gl_widget;
     }
 
-protected:
-    bool on_key_press_event(GdkEventKey *gdk_event) override {
-        guint keyval;
-        gdk_event_get_keyval((GdkEvent*)gdk_event, &keyval);
-
-        if(is_editing()) {
-            if(keyval == GDK_KEY_Escape) {
-                return _gl_widget.event((GdkEvent *)gdk_event);
-            } else {
-                _entry.event((GdkEvent *)gdk_event);
-            }
-            return true;
-        }
-
-        return Gtk::Fixed::on_key_press_event(gdk_event);
-    }
-
-    bool on_key_release_event(GdkEventKey *gdk_event) override {
-        if(is_editing()) {
-            _entry.event((GdkEvent *)gdk_event);
-            return true;
-        }
-
-        return Gtk::Fixed::on_key_release_event(gdk_event);
-    }
-
-    void on_size_allocate(Gtk::Allocation& allocation) override {
-        Gtk::Fixed::on_size_allocate(allocation);
-
-        _gl_widget.size_allocate(allocation);
-
-        int width, height, min_height, natural_height;
-        _entry.get_size_request(width, height);
-        _entry.get_preferred_height(min_height, natural_height);
-
-        Gtk::Allocation entry_rect = _entry.get_allocation();
-        entry_rect.set_width(width);
-        entry_rect.set_height(natural_height);
-        _entry.size_allocate(entry_rect);
-    }
-
+private:
     void on_activate() {
         if(_receiver->onEditingDone) {
-            _receiver->onEditingDone(_entry.get_text());
+            _receiver->onEditingDone(true);
         }
     }
 };
 
-class GtkWindow : public Gtk::Window {
+class GtkWindow {
     Platform::Window   *_receiver;
-    Gtk::Box            _vbox;
-    Gtk::PopoverMenuBar *_menu_bar = NULL;
-    Gtk::Box            _hbox;
+    GtkWidget          *_widget;
+    GtkWidget          *_vbox;
+    GtkWidget          *_menu_bar = NULL;
+    GtkWidget          *_hbox;
     GtkEditorOverlay    _editor_overlay;
-    Gtk::Scrollbar      _scrollbar;
+    GtkWidget          *_scrollbar;
     bool                _is_under_cursor = false;
     bool                _is_fullscreen = false;
     std::string         _tooltip_text;
-    Gdk::Rectangle      _tooltip_area;
+    GdkRectangle        _tooltip_area;
     
-    Glib::RefPtr<Gtk::EventControllerMotion> _motion_controller;
-    Glib::RefPtr<Gtk::EventControllerKey> _key_controller;
+    GtkEventController *_motion_controller;
+    GtkEventController *_key_controller;
 
 public:
     GtkWindow(Platform::Window *receiver) : _receiver(receiver), _editor_overlay(receiver) {
-        _vbox.set_orientation(Gtk::Orientation::VERTICAL);
-        _hbox.set_orientation(Gtk::Orientation::HORIZONTAL);
+        _widget = gtk_window_new();
+        _vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+        _hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
         
-        _editor_overlay.set_hexpand(true);
-        _editor_overlay.set_vexpand(true);
-        _scrollbar.set_hexpand(false);
+        gtk_widget_set_hexpand(_editor_overlay.get_widget(), TRUE);
+        gtk_widget_set_vexpand(_editor_overlay.get_widget(), TRUE);
         
-        _hbox.append(_editor_overlay);
-        _hbox.append(_scrollbar);
-        _vbox.append(_hbox);
-        set_child(_vbox);
+        _scrollbar = gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, NULL);
+        gtk_widget_set_hexpand(_scrollbar, FALSE);
         
+        gtk_box_append(GTK_BOX(_hbox), _editor_overlay.get_widget());
+        gtk_box_append(GTK_BOX(_hbox), _scrollbar);
+        gtk_box_append(GTK_BOX(_vbox), _hbox);
+        gtk_window_set_child(GTK_WINDOW(_widget), _vbox);
         
-        _scrollbar.get_adjustment()->signal_value_changed().
-            connect(sigc::mem_fun(this, &GtkWindow::on_scrollbar_value_changed));
+        GtkAdjustment *adjustment = gtk_scrollbar_get_adjustment(GTK_SCROLLBAR(_scrollbar));
+        g_signal_connect(adjustment, "value-changed", G_CALLBACK(+[](GtkAdjustment *adj, gpointer user_data) {
+            auto self = static_cast<GtkWindow*>(user_data);
+            self->on_scrollbar_value_changed();
+        }), this);
         
         get_gl_widget().set_has_tooltip(true);
         get_gl_widget().signal_query_tooltip().
