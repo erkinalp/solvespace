@@ -18,8 +18,7 @@
 #include <gtkmm/fixed.h>
 #include <gtkmm/glarea.h>
 #include <gtkmm/popovermenu.h>
-#include <gtkmm/popovermenubar.h>
-#include <gtkmm/menubutton.h>
+#include <gtk/gtk.h>
 #include <gtkmm/messagedialog.h>
 #include <gtkmm/scrollbar.h>
 #include <gtkmm/tooltip.h>
@@ -29,8 +28,7 @@
 #include <gtkmm/eventcontrollermotion.h>
 #include <gtkmm/eventcontrollerscroll.h>
 #include <gtkmm/gestureclick.h>
-#include <giomm/menu.h>
-#include <giomm/menuitem.h>
+#include <gio/gio.h>
 
 #include "config.h"
 
@@ -391,7 +389,7 @@ class MenuItemImplGtk final : public MenuItem {
 public:
     std::shared_ptr<GtkMenuItem> gtkMenuItem;
     std::function<void()> onTrigger;
-    Glib::RefPtr<Gio::SimpleAction> action;
+    GSimpleAction *action;
     Indicator indicatorType = Indicator::NONE;
     bool isActive = false;
 
@@ -452,17 +450,18 @@ public:
         if (gtkMenuItem) {
             switch(type) {
                 case Indicator::NONE:
-                    gtkMenuItem->set_has_indicator(false);
+                    gtk_check_menu_item_set_draw_as_radio(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), false);
+                    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), false);
                     break;
 
                 case Indicator::CHECK_MARK:
-                    gtkMenuItem->set_has_indicator(true);
-                    gtkMenuItem->set_draw_as_radio(false);
+                    gtk_check_menu_item_set_draw_as_radio(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), false);
+                    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), isActive);
                     break;
 
                 case Indicator::RADIO_MARK:
-                    gtkMenuItem->set_has_indicator(true);
-                    gtkMenuItem->set_draw_as_radio(true);
+                    gtk_check_menu_item_set_draw_as_radio(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), true);
+                    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), isActive);
                     break;
             }
         }
@@ -472,36 +471,36 @@ public:
         isActive = active;
         
         if (gtkMenuItem && indicatorType != Indicator::NONE) {
-            gtkMenuItem->set_active(active);
+            gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(gtkMenuItem->gtkWidget), active);
         }
     }
 
     void SetEnabled(bool enabled) override {
         if (action) {
-            action->set_enabled(enabled);
+            g_simple_action_set_enabled(action, enabled);
         }
     }
 };
 
 class MenuImplGtk final : public Menu {
 public:
-    Glib::RefPtr<Gio::Menu> menuModel;
-    Glib::RefPtr<Gio::SimpleActionGroup> actionGroup;
+    GMenu *menuModel;
+    GSimpleActionGroup *actionGroup;
     std::vector<std::shared_ptr<MenuItemImplGtk>> menuItems;
     std::vector<std::shared_ptr<MenuImplGtk>> subMenus;
-    Gtk::PopoverMenu* popoverMenu;
+    GtkPopoverMenu* popoverMenu;
     
     MenuImplGtk() {
-        menuModel = Gio::Menu::create();
-        actionGroup = Gio::SimpleActionGroup::create();
+        menuModel = g_menu_new();
+        actionGroup = g_simple_action_group_new();
         popoverMenu = nullptr;
     }
     
-    void SetPopoverMenu(Gtk::PopoverMenu* menu) {
+    void SetPopoverMenu(GtkPopoverMenu* menu) {
         popoverMenu = menu;
         if (popoverMenu) {
-            popoverMenu->set_menu_model(menuModel);
-            popoverMenu->insert_action_group("menu", actionGroup);
+            gtk_popover_menu_set_menu_model(popoverMenu, G_MENU_MODEL(menuModel));
+            gtk_widget_insert_action_group(GTK_WIDGET(popoverMenu), "menu", G_ACTION_GROUP(actionGroup));
         }
     }
 
@@ -513,19 +512,22 @@ public:
         
         std::string actionName = "action_" + std::to_string(reinterpret_cast<uintptr_t>(menuItem.get()));
         
-        auto action = Gio::SimpleAction::create(actionName);
+        GSimpleAction *action = g_simple_action_new(actionName.c_str(), NULL);
         
-        action->signal_activate().connect([menuItem](const Glib::VariantBase&) {
+        g_signal_connect(action, "activate", G_CALLBACK(+[](GSimpleAction*, GVariant*, void* user_data) {
+            auto menuItem = static_cast<MenuItemImplGtk*>(user_data);
             if (menuItem->onTrigger) {
                 menuItem->onTrigger();
             }
-        });
+        }), menuItem.get());
         
-        actionGroup->add_action(action);
+        g_action_map_add_action(G_ACTION_MAP(actionGroup), G_ACTION(action));
         
-        auto item = Gio::MenuItem::create(mnemonics ? PrepareMnemonics(label) : label, 
-                                         "menu." + actionName);
-        menuModel->append_item(item);
+        GMenuItem *item = g_menu_item_new(
+            mnemonics ? PrepareMnemonics(label).c_str() : label.c_str(), 
+            ("menu." + actionName).c_str());
+        g_menu_append_item(menuModel, item);
+        g_object_unref(item);
         
         menuItem->action = action;
         
@@ -576,24 +578,24 @@ MenuRef CreateMenu() {
 
 class MenuBarImplGtk final : public MenuBar {
 public:
-    Gtk::PopoverMenuBar gtkMenuBar;
-    Glib::RefPtr<Gio::Menu> menuModel;
-    Glib::RefPtr<Gio::SimpleActionGroup> actionGroup;
+    GtkWidget *gtkMenuBar;
+    GMenu *menuModel;
+    GSimpleActionGroup *actionGroup;
     std::vector<std::shared_ptr<MenuImplGtk>> subMenus;
 
     MenuBarImplGtk() {
-        menuModel = Gio::Menu::create();
-        actionGroup = Gio::SimpleActionGroup::create();
-        gtkMenuBar.set_menu_model(menuModel);
-        gtkMenuBar.insert_action_group("menubar", actionGroup);
+        menuModel = g_menu_new();
+        actionGroup = g_simple_action_group_new();
+        gtkMenuBar = gtk_popover_menu_bar_new_from_model(G_MENU_MODEL(menuModel));
+        gtk_widget_insert_action_group(gtkMenuBar, "menubar", G_ACTION_GROUP(actionGroup));
     }
 
     MenuRef AddSubMenu(const std::string &label) override {
         auto subMenu = std::make_shared<MenuImplGtk>();
         subMenus.push_back(subMenu);
         
-        auto subMenuModel = Gio::Menu::create();
-        menuModel->append_submenu(PrepareMnemonics(label), subMenuModel);
+        GMenu *subMenuModel = g_menu_new();
+        g_menu_append_submenu(menuModel, PrepareMnemonics(label).c_str(), G_MENU_MODEL(subMenuModel));
         
         subMenu->menuModel = subMenuModel;
         subMenu->actionGroup = actionGroup;
@@ -602,8 +604,8 @@ public:
     }
 
     void Clear() override {
-        while(menuModel->get_n_items() > 0) {
-            menuModel->remove(0);
+        while(g_menu_model_get_n_items(G_MENU_MODEL(menuModel)) > 0) {
+            g_menu_remove(menuModel, 0);
         }
         subMenus.clear();
     }
