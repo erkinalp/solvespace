@@ -11,26 +11,10 @@
 #include <gtk/gtk.h>
 #include <gio/gio.h>
 #include <fontconfig/fontconfig.h>
-#include <glibmm/convert.h>
-#include <glibmm/main.h>
-#include <gtkmm.h>
-#include <gtkmm/box.h>
-#include <gtkmm/button.h>
-#include <gtkmm/cssprovider.h>
-#include <gtkmm/entry.h>
-#include <gtkmm/filechooserdialog.h>
-#include <gtkmm/fixed.h>
-#include <gtkmm/glarea.h>
-#include <gtkmm/application.h>
-#include <gtkmm/popovermenubar.h>
-#include <gtkmm/messagedialog.h>
-#include <gtkmm/scrollbar.h>
-#include <gtkmm/tooltip.h>
-#include <gtkmm/window.h>
+#include <glib.h>
+#include <glib/gi18n.h>
 
 #include "config.h"
-#if defined(HAVE_GTK_FILECHOOSERNATIVE)
-#   include <gtkmm/filechoosernative.h>
 #endif
 
 #if defined(HAVE_SPACEWARE)

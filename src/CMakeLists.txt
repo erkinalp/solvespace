@@ -15,7 +15,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Check for GTK4
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK4 gtk4)
-pkg_check_modules(GTKMM4 gtkmm-4.0)
 
 if(NOT WIN32 OR APPLE)
     if(GTKMM_gtkmm-3.0_VERSION VERSION_LESS "3.24.0")
