@@ -23,6 +23,14 @@
         {
             "name": "mm-common",
             "buildsystem": "meson",
+            "config-opts": [
+                "-Dwarning_level=0"
+            ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
@@ -44,21 +52,22 @@
         },
         {
             "name": "sigc++",
-            "buildsystem": "meson",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
             "config-opts": [
-                "-Dbuild-examples=false"
+                "-DBUILD_EXAMPLES=OFF"
             ],
             "sources": [
                 {
                     "type": "archive",
-                    "url": "https://download.gnome.org/sources/libsigc++/2.10/libsigc++-2.10.8.tar.xz",
-                    "sha256": "235a40bec7346c7b82b6a8caae0456353dc06e71f14bc414bcc858af1838719a",
+                    "url": "https://download.gnome.org/sources/libsigc++/3.0/libsigc++-3.0.0.tar.xz",
+                    "sha256": "50a0855c1eb26e6044ffe888dbe061938ab4241f96d8f3754ea7ead38ab8ed06",
                     "x-checker-data": {
                         "type": "gnome",
                         "name": "libsigc++",
                         "stable-only": true,
                         "versions": {
-                            "<": "3.0.0"
+                            ">=": "3.0.0"
                         }
                     }
                 }
@@ -69,21 +78,27 @@
         },
         {
             "name": "glibmm",
-            "buildsystem": "meson",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
             "config-opts": [
-                "-Dbuild-examples=false"
+                "-DBUILD_EXAMPLES=OFF"
             ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
-                    "url": "https://download.gnome.org/sources/glibmm/2.66/glibmm-2.66.4.tar.xz",
-                    "sha256": "199ace5682d81b15a1d565480b4a950682f2db6402c8aa5dd7217d71edff81d5",
+                    "url": "https://download.gnome.org/sources/glibmm/2.68/glibmm-2.68.2.tar.xz",
+                    "sha256": "91e0a8618f7b82db4aaf2648932ea2bcfe626ad030068c18fa2d106fd838d8ad",
                     "x-checker-data": {
                         "type": "gnome",
                         "name": "glibmm",
                         "stable-only": true,
                         "versions": {
-                            "<": "2.68.0"
+                            ">=": "2.68.0"
                         }
                     }
                 }
@@ -96,20 +111,28 @@
         },
         {
             "name": "cairomm",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
             "config-opts": [
-                "--disable-documentation"
+                "-DBUILD_EXAMPLES=OFF",
+                "-DBUILD_TESTS=OFF"
             ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
-                    "url": "https://download.gnome.org/sources/cairomm/1.12/cairomm-1.12.0.tar.xz",
-                    "sha256": "a54ada8394a86182525c0762e6f50db6b9212a2109280d13ec6a0b29bfd1afe6",
+                    "url": "https://download.gnome.org/sources/cairomm/1.15/cairomm-1.15.4.tar.xz",
+                    "sha256": "4cd9fd959538953dfa606aaa7a31381e3193eebf14d814d97ef928684ee9feb5",
                     "x-checker-data": {
                         "type": "gnome",
                         "name": "cairomm",
                         "stable-only": true,
                         "versions": {
-                            "<": "1.16.0"
+                            ">=": "1.16.0"
                         }
                     }
                 }
@@ -120,18 +143,28 @@
         },
         {
             "name": "pangomm",
-            "buildsystem": "meson",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
+            "config-opts": [
+                "-DBUILD_EXAMPLES=OFF",
+                "-DBUILD_TESTS=OFF"
+            ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
-                    "url": "https://download.gnome.org/sources/pangomm/2.46/pangomm-2.46.2.tar.xz",
-                    "sha256": "57442ab4dc043877bfe3839915731ab2d693fc6634a71614422fb530c9eaa6f4",
+                    "url": "https://download.gnome.org/sources/pangomm/2.50/pangomm-2.50.1.tar.xz",
+                    "sha256": "ccc9923413e408c2bff637df663248327d72822f11e394b423e1c5652b7d9214",
                     "x-checker-data": {
                         "type": "gnome",
                         "name": "pangomm",
                         "stable-only": true,
                         "versions": {
-                            "<": "2.48.0"
+                            ">=": "2.48.0"
                         }
                     }
                 }
@@ -142,18 +175,28 @@
         },
         {
             "name": "atkmm",
-            "buildsystem": "meson",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
+            "config-opts": [
+                "-DBUILD_EXAMPLES=OFF",
+                "-DBUILD_TESTS=OFF"
+            ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
-                    "url": "https://download.gnome.org/sources/atkmm/2.28/atkmm-2.28.2.tar.xz",
-                    "sha256": "a0bb49765ceccc293ab2c6735ba100431807d384ffa14c2ebd30e07993fd2fa4",
+                    "url": "https://download.gnome.org/sources/atkmm/2.36/atkmm-2.36.2.tar.xz",
+                    "sha256": "6f62dd99f746985e573605937577ccfc944368f606a71ca46342d70e1cdae079",
                     "x-checker-data": {
                         "type": "gnome",
                         "name": "atkmm",
                         "stable-only": true,
                         "versions": {
-                            "<": "2.30.0"
+                            ">=": "2.30.0"
                         }
                     }
                 }
@@ -164,22 +207,28 @@
         },
         {
             "name": "gtkmm",
-            "buildsystem": "meson",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
             "config-opts": [
-                "-Dbuild-demos=false",
-                "-Dbuild-tests=false"
+                "-DBUILD_DEMOS=OFF",
+                "-DBUILD_TESTS=OFF"
             ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
-                    "url": "https://download.gnome.org/sources/gtkmm/3.24/gtkmm-3.24.6.tar.xz",
-                    "sha256": "4b3e142e944e1633bba008900605c341a93cfd755a7fa2a00b05d041341f11d6",
+                    "url": "https://download.gnome.org/sources/gtkmm/4.8/gtkmm-4.8.0.tar.xz",
+                    "sha256": "c82786d46e2b07346b6397ca7f1929d952f4922fa5c9db3dee08498b9a136cf5",
                     "x-checker-data": {
                         "type": "gnome",
                         "name": "gtkmm",
                         "stable-only": true,
                         "versions": {
-                            "<": "4.0.0"
+                            ">=": "4.0.0"
                         }
                     }
                 }
@@ -193,6 +242,11 @@
             "name": "eigen",
             "buildsystem": "cmake-ninja",
             "builddir": true,
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
@@ -218,6 +272,11 @@
                 "-DBUILD_STATIC_LIBS=OFF",
                 "-DENABLE_THREADING=ON"
             ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "archive",
@@ -238,8 +297,15 @@
             "builddir": true,
             "config-opts": [
                 "-DFLATPAK=ON",
-                "-DENABLE_TESTS=OFF"
+                "-DENABLE_TESTS=OFF",
+                "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+                "-DUSE_GTK4=ON"
             ],
+            "build-options": {
+                "env": {
+                    "MESON_ARGS": "--wrap-mode=nofallback"
+                }
+            },
             "sources": [
                 {
                     "type": "dir",
