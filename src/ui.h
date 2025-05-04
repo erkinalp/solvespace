@@ -250,7 +250,7 @@ public:
     Vector HsvToRgb(Vector hsv);
     std::shared_ptr<Pixmap> HsvPattern2d(int w, int h);
     std::shared_ptr<Pixmap> HsvPattern1d(double hue, double sat, int w, int h);
-    void ColorPickerDone();
+    void ColorPickerDone(const RgbaColor& newColor);
     bool DrawOrHitTestColorPicker(UiCanvas *canvas, DrawOrHitHow how,
                                   bool leftDown, double x, double y);
 
@@ -324,6 +324,7 @@ public:
         FIND_CONSTRAINT_TIMEOUT = 119,
         EXPLODE_DISTANCE      = 120,
         ANIMATION_SPEED       = 121,
+        LANGUAGE              = 122,
         // For TTF text
         TTF_TEXT              = 300,
         // For the step dimension screen
@@ -447,6 +448,7 @@ public:
     static void ScreenChangeArcDimDefault(int link, uint32_t v);
     static void ScreenChangeShowFullFilePath(int link, uint32_t v);
     static void ScreenChangeFixExportColors(int link, uint32_t v);
+    static void ScreenChangeLanguage(int link, uint32_t v);
     static void ScreenChangeExportBackgroundColor(int link, uint32_t v);
     static void ScreenChangeBackFaces(int link, uint32_t v);
     static void ScreenChangeShowContourAreas(int link, uint32_t v);

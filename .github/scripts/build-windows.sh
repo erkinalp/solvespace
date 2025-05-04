@@ -16,6 +16,8 @@ if [ "$1" = "release" ]; then
         -DENABLE_OPENMP="${ENABLE_OPENMP}" \
         -DENABLE_LTO=ON \
         -DCMAKE_GENERATOR_PLATFORM="Win32" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DUSE_GTK4=OFF \
         ..
 else
     BUILD_TYPE=Debug
@@ -24,6 +26,8 @@ else
         -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
         -DENABLE_OPENMP="ON" \
         -DCMAKE_GENERATOR_PLATFORM="Win32" \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DUSE_GTK4=OFF \
         ..
 fi
 

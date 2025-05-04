@@ -334,6 +334,12 @@ void TextWindow::ShowEditControlWithColorPicker(int col, RgbaColor rgb) {
     editControl.colorPicker.s = 0;
     editControl.colorPicker.v = 1;
     ShowEditControl(col, ssprintf("%.2f, %.2f, %.2f", rgb.redF(), rgb.greenF(), rgb.blueF()));
+    
+#ifdef USE_GTK4
+    Platform::ShowColorPicker(rgb, [this](const RgbaColor& newColor) {
+        ColorPickerDone(newColor);
+    });
+#endif
 }
 
 void TextWindow::ClearScreen() {
@@ -365,7 +371,7 @@ void TextWindow::Printf(bool halfLine, const char *fmt, ...) {
         Printf(halfLine, endString);
         return;
     }
-    
+
     va_list vl;
     va_start(vl, fmt);
 
@@ -717,9 +723,9 @@ std::shared_ptr<Pixmap> TextWindow::HsvPattern1d(double hue, double sat, int w, 
     return pixmap;
 }
 
-void TextWindow::ColorPickerDone() {
-    RgbaColor rgb = editControl.colorPicker.rgb;
-    EditControlDone(ssprintf("%.2f, %.2f, %.3f", rgb.redF(), rgb.greenF(), rgb.blueF()));
+void TextWindow::ColorPickerDone(const RgbaColor& newColor) {
+    editControl.colorPicker.rgb = newColor;
+    EditControlDone(ssprintf("%.2f, %.2f, %.3f", newColor.redF(), newColor.greenF(), newColor.blueF()));
 }
 
 bool TextWindow::DrawOrHitTestColorPicker(UiCanvas *uiCanvas, DrawOrHitHow how, bool leftDown,
@@ -825,7 +831,7 @@ bool TextWindow::DrawOrHitTestColorPicker(UiCanvas *uiCanvas, DrawOrHitHow how, 
             } else if(how == CLICK) {
                 if(x >= sx && x <= sx+SIZE && y >= sy && y <= sy+SIZE) {
                     editControl.colorPicker.rgb = RGBf(rgb.x, rgb.y, rgb.z);
-                    ColorPickerDone();
+                    ColorPickerDone(editControl.colorPicker.rgb);
                 }
             } else if(how == HOVER) {
                 if(x >= sx && x <= sx+SIZE && y >= sy && y <= sy+SIZE) {
@@ -846,7 +852,7 @@ bool TextWindow::DrawOrHitTestColorPicker(UiCanvas *uiCanvas, DrawOrHitHow how, 
                            /*zIndex=*/2);
     } else if(how == CLICK) {
         if(x >= hx && x <= hxm && y >= hy && y <= hym) {
-            ColorPickerDone();
+            ColorPickerDone(editControl.colorPicker.rgb);
         }
     } else if(how == HOVER) {
         if(x >= hx && x <= hxm && y >= hy && y <= hym) {

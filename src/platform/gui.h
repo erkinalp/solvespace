@@ -7,6 +7,9 @@
 #ifndef SOLVESPACE_GUI_H
 #define SOLVESPACE_GUI_H
 
+#include <set>
+#include <string>
+
 namespace SolveSpace {
 class RgbaColor;
 
@@ -93,6 +96,26 @@ struct KeyboardEvent {
             ((key == Key::CHARACTER && chr == other.chr) ||
              (key == Key::FUNCTION && num == other.num));
     }
+};
+
+// A touch gesture input event.
+struct TouchGestureEvent {
+    enum class Type {
+        ROTATE,
+        ZOOM,
+        PAN,
+        SWIPE,
+        PINCH
+    };
+
+    Type type;
+    double x, y;
+    double rotation_angle;        // For rotation gestures, in radians
+    double rotation_angle_delta;  // Change in rotation angle
+    double zoom_scale;            // For zoom gestures
+    double pan_delta_x, pan_delta_y;  // For pan gestures
+    double swipe_velocity_x, swipe_velocity_y;  // For swipe gestures
+    double pinch_scale;           // For pinch gestures
 };
 
 std::string AcceleratorDescription(const KeyboardEvent &accel);
@@ -223,6 +246,11 @@ public:
     std::function<void(double)>         onScrollbarAdjusted;
     std::function<void()>               onContextLost;
     std::function<void()>               onRender;
+    std::function<void(const char*)>    onFileDrop;
+    std::function<void(TouchGestureEvent)> onTouchGesture;
+    std::function<std::string()>        onDragExport;
+    std::function<void()>               onDragExportCleanup;
+    std::function<void(int)>            onScaleFactorChanged;
 
     virtual ~Window() = default;
 
@@ -381,6 +409,41 @@ FileDialogRef CreateSaveFileDialog(WindowRef parentWindow);
 
 std::vector<Platform::Path> GetFontFiles();
 void OpenInBrowser(const std::string &url);
+void ShowColorPicker(const RgbaColor& initialColor, std::function<void(const RgbaColor&)> onColorSelected);
+
+// Check if current text direction is RTL
+inline bool IsRTL() {
+    static bool checked = false;
+    static bool is_rtl = false;
+    
+    if (!checked) {
+#if defined(USE_GTK4) && defined(HAVE_GTKMM)
+        // In GTK builds, check the current locale
+        try {
+            // Get current locale and check if it's RTL
+            std::string locale = Glib::get_language_names()[0];
+            
+            // Only include languages that use RTL scripts
+            std::set<std::string> rtl_langs = {"ar", "he", "fa", "ur", "dv", "ha", "khw", "ks", "ps", "sd", "ug", "yi"};
+            
+            // For Kurdish, check if it's specifically Sorani Kurdish (ckb) which uses RTL
+            // Kurmanji Kurdish (ku_TR) uses Latin script (LTR)
+            bool is_sorani_kurdish = locale.length() >= 3 && locale.substr(0, 3) == "ckb";
+            
+            is_rtl = (locale.length() >= 2 && rtl_langs.find(locale.substr(0, 2)) != rtl_langs.end()) || is_sorani_kurdish;
+        } catch (...) {
+            // If there's any error, default to LTR
+            is_rtl = false;
+        }
+#else
+        // In non-GTK builds, default to LTR
+        is_rtl = false;
+#endif
+        checked = true;
+    }
+    
+    return is_rtl;
+}
 
 std::vector<std::string> InitGui(int argc, char **argv);
 void RunGui();

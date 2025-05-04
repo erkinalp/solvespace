@@ -48,6 +48,7 @@ Contributing code
 
 SolveSpace is written in C++, and currently targets all compilers compliant with C++11.
 This includes GCC 5 and later, Clang 3.3 and later, and Visual Studio 12 (2013) and later.
+For GTK4 builds (enabled with USE_GTK4=ON), C++17 is required due to GTKmm-4 dependencies.
 
 ### High-level conventions
 
@@ -289,3 +290,117 @@ the following commands in your shell:
     export G_DEBUG=fatal_warnings
     export LIBGL_DEBUG=1
     export MESA_DEBUG=1
+
+### GTK4 Development Best Practices
+
+When working on the GTK4 implementation (enabled with USE_GTK4=ON), follow these best practices:
+
+#### Event Controllers
+
+GTK4 replaces the signal-based event handling with controller-based event handling. Always use the appropriate controller classes:
+
+```c++
+// Instead of this (GTK3 style):
+button->signal_clicked().connect([this]() {
+    // Handle click
+});
+
+// Use this (GTK4 style):
+auto click_controller = Gtk::GestureClick::create();
+click_controller->signal_released().connect([this](int n_press, double x, double y) {
+    // Handle click
+});
+button->add_controller(click_controller);
+```
+
+Common controller types:
+- `Gtk::GestureClick` - For click events
+- `Gtk::EventControllerKey` - For keyboard events
+- `Gtk::EventControllerMotion` - For mouse motion events
+- `Gtk::EventControllerScroll` - For scroll events
+- `Gtk::ShortcutController` - For keyboard shortcuts
+
+#### Property Bindings
+
+GTK4 provides a reactive property binding system. Use property bindings instead of signal handlers for property changes:
+
+```c++
+// Instead of this (GTK3 style):
+settings->property_gtk_application_prefer_dark_theme().signal_changed().connect([]() {
+    // Handle theme change
+});
+
+// Use this (GTK4 style):
+auto theme_binding = Gtk::PropertyExpression<bool>::create(
+    settings->property_gtk_application_prefer_dark_theme());
+theme_binding->connect([](bool dark_theme) {
+    // Handle theme change
+});
+```
+
+#### Layout Managers
+
+GTK4 emphasizes layout managers over manual positioning. Use appropriate layout managers:
+
+- `Gtk::Grid` - For grid-based layouts
+- `Gtk::Box` - For horizontal or vertical layouts
+- `Gtk::Paned` - For resizable split views
+- `Gtk::Overlay` - For overlaying widgets
+
+#### CSS Styling
+
+GTK4 provides enhanced CSS styling capabilities. Use CSS classes and styling:
+
+```c++
+// Add CSS classes to widgets
+widget->add_css_class("my-custom-class");
+
+// Load CSS from file (preferred method)
+auto css_provider = Gtk::CssProvider::create();
+try {
+    auto css_file = Gio::File::create_for_path(Platform::PathFromResource("platform/css/theme.css"));
+    css_provider->load_from_file(css_file);
+} catch (const Glib::Error& e) {
+    // Fallback to embedded CSS
+    css_provider->load_from_data(
+        ".my-custom-class { background-color: #f0f0f0; }"
+    );
+}
+
+// Apply provider to the display
+Gtk::StyleContext::add_provider_for_display(
+    display,
+    css_provider,
+    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+);
+```
+
+Note that GTK4 CSS loaders overwrite previous CSS data rather than appending to it. To apply multiple CSS styles, either:
+1. Combine them into a single file/string before loading, or
+2. Use a different CSS provider instance for each style section.
+
+For better maintainability, CSS should be stored in separate files in the `src/platform/css/` directory with corresponding `.css.h` header files for fallback embedded CSS.
+
+The project includes a CSS syntax verification script (`scripts/verify_css.py`) that runs during CI to catch potential syntax errors that could cause crashes or layout issues. This verification only runs when GTK4 is enabled in the build.
+
+#### Accessibility
+
+GTK4 has improved accessibility support. Use the update_property method to set accessibility properties:
+
+```c++
+// Instead of this (GTK3 style):
+widget->get_accessible()->set_property("accessible-role", "button");
+widget->get_accessible()->set_property("accessible-name", "Save");
+
+// Use this (GTK4 style):
+widget->update_property(Gtk::Accessible::Property::ROLE, Gtk::Accessible::Role::BUTTON);
+widget->update_property(Gtk::Accessible::Property::LABEL, "Save");
+widget->update_property(Gtk::Accessible::Property::DESCRIPTION, "Save the current document");
+```
+
+For operation mode announcements, update the label property:
+
+```c++
+// Announce operation mode for screen readers
+widget->update_property(Gtk::Accessible::Property::LABEL, "SolveSpace 3D View - Delete Mode");
+```

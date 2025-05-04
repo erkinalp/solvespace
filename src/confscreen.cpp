@@ -212,8 +212,52 @@ void TextWindow::ScreenChangeAnimationSpeed(int link, uint32_t v) {
     SS.TW.edit.meaning = Edit::ANIMATION_SPEED;
 }
 
+void TextWindow::ScreenChangeLanguage(int link, uint32_t v) {
+    std::vector<std::string> availableLocales;
+    const std::set<Locale, LocaleLess> &locales = Locales();
+    
+    for(const Locale &locale : locales) {
+        availableLocales.push_back(locale.language + "_" + locale.region);
+    }
+    
+    if(availableLocales.empty()) {
+        availableLocales.push_back("en_US");
+    }
+    
+    auto settings = SolveSpace::Platform::GetSettings();
+    std::string currentLocale = settings->ThawString("locale", "");
+    
+    SS.TW.Printf(false, "%Ft%f%s%E", C_("status", "Available languages: "));
+    for(size_t i = 0; i < availableLocales.size(); i++) {
+        if(i > 0) SS.TW.Printf(false, ", ");
+        SS.TW.Printf(false, "%s", availableLocales[i].c_str());
+    }
+    SS.TW.Printf(false, "");
+    
+    SS.TW.ShowEditControl(3, currentLocale);
+    SS.TW.edit.meaning = Edit::LANGUAGE;
+}
+
 void TextWindow::ShowConfiguration() {
     int i;
+    Printf(true, "%Ft user color (r, g, b)");
+
+    Printf(false, "");
+    Printf(false, "%Ft language / internationalization%E");
+    
+    auto settings = SolveSpace::Platform::GetSettings();
+    std::string currentLocale = settings->ThawString("locale", "");
+    if(currentLocale.empty()) {
+        currentLocale = "en_US";
+    }
+    
+    Printf(false, "%Ba   %Fd %f%Ll%Fl language:%E %s",
+        &ScreenChangeLanguage, C_("configuration", "change"),
+        currentLocale.c_str());
+    
+    Printf(false, "%Ft select your preferred language for the user interface");
+    
+    Printf(false, "");
     Printf(true, "%Ft user color (r, g, b)");
 
     for(i = 0; i < SS.MODEL_COLORS; i++) {
@@ -578,6 +622,22 @@ bool TextWindow::EditControlDoneForConfiguration(const std::string &s) {
                 SS.animationSpeed = speed;
             } else {
                 SS.animationSpeed = 800;
+            }
+            break;
+        }
+        
+        case Edit::LANGUAGE: {
+            if(!s.empty()) {
+                auto settings = SolveSpace::Platform::GetSettings();
+                settings->FreezeString("locale", s);
+                
+                if(SolveSpace::SetLocale(s)) {
+                    SS.GW.Invalidate();
+                    SS.TW.ShowConfiguration();
+                    SS.UpdateWindowTitles();
+                } else {
+                    Error(_("Failed to set locale: %s"), s.c_str());
+                }
             }
             break;
         }
